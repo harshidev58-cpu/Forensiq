@@ -1,0 +1,68 @@
+# Sensitive Files
+*.env
+.env
+.env.local
+.env.*.local
+secrets.json
+credentials.json
+api_keys.json
+config.secret.json
+*.pem
+*.key
+*.p8
+*.pfx
+
+# Database Files (local/test)
+*.db
+*.sqlite
+*.sqlite3
+forensix.db
+*.log
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Project-specific
+evidence_storage/
+*.db-journal
+forensix.log

@@ -1,0 +1,23 @@
+# Core FastAPI and web framework dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Data validation and serialization
+pydantic==2.5.0
+
+# Image metadata extraction (EXIF)
+Pillow==10.1.0
+
+# Video metadata extraction
+ffmpeg-python==0.2.0
+
+# HTTP client for testing
+httpx==0.25.2
+
+# Testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Utilities
+python-dateutil==2.8.2
