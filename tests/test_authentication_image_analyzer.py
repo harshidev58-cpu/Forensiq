@@ -97,7 +97,7 @@ class TestImageAnalyzer:
         header_signal = header_signals[0]
         assert header_signal.signal_name == "HEADER_VALID"
         assert header_signal.severity == "INFO"
-        assert header_signal.score < 50
+        assert header_signal.score > 50
     
     def test_png_header_validation(self, analyzer, sample_png_path):
         """Test that PNG header validation works."""
@@ -116,7 +116,7 @@ class TestImageAnalyzer:
         
         dim_signal = dim_signals[0]
         assert dim_signal.signal_name == "DIMENSIONS_VALID"
-        assert dim_signal.score < 50
+        assert dim_signal.score > 50
     
     def test_color_space_signal(self, analyzer, sample_jpeg_path):
         """Test that color space validation produces signal."""

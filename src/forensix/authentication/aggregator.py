@@ -72,15 +72,9 @@ class SignalAggregator:
         """
         Calculate weighted average confidence score from signals.
         
-        IMPORTANT: In authentication, a LOW signal score (close to 0) means CLEAN/AUTHENTIC
-        while a HIGH signal score (close to 100) means TAMPERING detected.
-        
-        Confidence = 100 - average_signal_score
-        
-        This inverts the signal scores so that:
-        - Signals with score 0-10 (clean) -> confidence 90-100 (authentic)
-        - Signals with score 50 (uncertain) -> confidence 50 (suspicious)
-        - Signals with score 80-100 (tampering) -> confidence 0-20 (tampered)
+        Signal scores represent confidence directly (0-100 where higher is more confident/authentic).
+        For single signals, the confidence is the signal score directly.
+        For multiple signals, calculate simple average of all signal scores.
         
         Returns: Integer 0-100 representing overall confidence/authenticity
         """
@@ -89,16 +83,12 @@ class SignalAggregator:
             return 50
         
         # Calculate simple average of all signal scores
-        avg_signal_score = sum(s.score for s in signals) / len(signals)
-        
-        # Invert: confidence = 100 - avg_signal_score
-        # This makes low scores (0-10 clean) -> high confidence (90-100 authentic)
-        confidence_score = int(100 - avg_signal_score)
+        confidence_score = int(sum(s.score for s in signals) / len(signals))
         
         # Ensure score is in valid range
         confidence_score = max(0, min(100, confidence_score))
         
-        logger.debug(f"Confidence calculation: avg_signal_score={int(avg_signal_score)}, confidence={confidence_score}")
+        logger.debug(f"Confidence calculation: avg_score={confidence_score}")
         
         return confidence_score
     

@@ -69,11 +69,11 @@ class TestAuthenticationIntegration:
     def test_signal_aggregation_authentic_verdict(self):
         """Test that high quality signals produce AUTHENTIC verdict (Requirement 5.3)."""
         signals = [
-            Signal("HEADER_VALID", "STRUCTURE", "INFO", 5, "Valid"),
-            Signal("EXIF_COMPLETE", "METADATA", "INFO", 10, "Complete"),
-            Signal("COLORSPACE_STANDARD", "ENCODING", "INFO", 8, "Standard"),
-            Signal("COMPRESSION_SINGLE", "ENCODING", "INFO", 15, "Single gen"),
-            Signal("DIMENSIONS_VALID", "STRUCTURE", "INFO", 5, "Valid dims"),
+            Signal("HEADER_VALID", "STRUCTURE", "INFO", 95, "Valid"),
+            Signal("EXIF_COMPLETE", "METADATA", "INFO", 90, "Complete"),
+            Signal("COLORSPACE_STANDARD", "ENCODING", "INFO", 92, "Standard"),
+            Signal("COMPRESSION_SINGLE", "ENCODING", "INFO", 85, "Single gen"),
+            Signal("DIMENSIONS_VALID", "STRUCTURE", "INFO", 95, "Valid dims"),
         ]
         
         aggregator = SignalAggregator()
@@ -99,9 +99,9 @@ class TestAuthenticationIntegration:
     def test_signal_aggregation_suspicious_verdict(self):
         """Test that mixed signals produce SUSPICIOUS verdict (Requirement 5.3)."""
         signals = [
-            Signal("HEADER_VALID", "STRUCTURE", "INFO", 5, "Valid"),
-            Signal("EXIF_MISSING", "METADATA", "WARNING", 50, "Missing"),
-            Signal("COMPRESSION_MULTIPLE", "ENCODING", "WARNING", 60, "Multiple gen"),
+            Signal("HEADER_VALID", "STRUCTURE", "INFO", 95, "Valid"),
+            Signal("EXIF_MISSING", "METADATA", "WARNING", 40, "Missing"),
+            Signal("COMPRESSION_MULTIPLE", "ENCODING", "WARNING", 35, "Multiple gen"),
         ]
         
         aggregator = SignalAggregator()

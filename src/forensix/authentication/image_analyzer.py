@@ -40,14 +40,42 @@ class ImageAnalyzer:
         signals = []
         
         try:
-            # Perform all analysis checks
-            signals.extend(self._check_exif_metadata(file_path))
+            # Always check header first - works even with corrupted files
             signals.extend(self._check_image_header(file_path))
-            signals.extend(self._check_thumbnail(file_path))
-            signals.extend(self._check_color_space(file_path))
-            signals.extend(self._check_compression_artifacts(file_path))
+            
+            # Perform remaining analysis checks (may fail for corrupted files)
+            try:
+                signals.extend(self._check_exif_metadata(file_path))
+            except Exception as e:
+                logger.debug(f"EXIF check failed for {file_path}: {e}")
+            
+            try:
+                signals.extend(self._check_thumbnail(file_path))
+            except Exception as e:
+                logger.debug(f"Thumbnail check failed for {file_path}: {e}")
+            
+            try:
+                signals.extend(self._check_color_space(file_path))
+            except Exception as e:
+                logger.debug(f"Color space check failed for {file_path}: {e}")
+            
+            try:
+                signals.extend(self._check_compression_artifacts(file_path))
+            except Exception as e:
+                logger.debug(f"Compression check failed for {file_path}: {e}")
             
             logger.debug(f"Image analysis complete: {len(signals)} signals generated")
+            
+            # Ensure at least one signal is generated even for corrupted files
+            if not signals:
+                signals.append(Signal(
+                    signal_name="FILE_UNREADABLE",
+                    category="STRUCTURE",
+                    severity="CRITICAL",
+                    score=80,
+                    message="Image file is unreadable or corrupted",
+                    details={"error": "Unable to analyze file"}
+                ))
             
         except Exception as e:
             logger.error(f"Error during image analysis of {file_path}: {e}")
@@ -92,7 +120,7 @@ class ImageAnalyzer:
                     signal_name="EXIF_MISSING",
                     category="METADATA",
                     severity="WARNING",
-                    score=50,
+                    score=40,
                     message="No EXIF metadata found in image",
                     details={"exif_present": False}
                 ))
@@ -111,7 +139,7 @@ class ImageAnalyzer:
                     signal_name="EXIF_COMPLETE",
                     category="METADATA",
                     severity="INFO",
-                    score=10,
+                    score=90,
                     message=f"EXIF metadata complete with {len(found_tags)} standard tags",
                     details={"tags_found": found_tags, "completeness_percent": int(completeness)}
                 ))
@@ -134,7 +162,7 @@ class ImageAnalyzer:
                         signal_name="EXIF_GPS_PRESENT",
                         category="METADATA",
                         severity="INFO",
-                        score=15,
+                        score=85,
                         message="GPS coordinates present in EXIF",
                         details={"gps_present": True}
                     ))
@@ -142,7 +170,7 @@ class ImageAnalyzer:
                 pass
             
         except Exception as e:
-            logger.warning(f"Error checking EXIF metadata in {file_path}: {e}")
+            logger.debug(f"Error checking EXIF metadata in {file_path}: {e}")
         
         return signals
     
@@ -162,6 +190,17 @@ class ImageAnalyzer:
             with open(file_path, 'rb') as f:
                 header = f.read(16)
             
+            if len(header) == 0:
+                signals.append(Signal(
+                    signal_name="HEADER_CORRUPTED",
+                    category="STRUCTURE",
+                    severity="CRITICAL",
+                    score=15,
+                    message="Image file is empty",
+                    details={"format": "UNKNOWN", "magic_valid": False}
+                ))
+                return signals
+            
             # Determine format and check magic number
             file_format = self._identify_format(header)
             
@@ -172,7 +211,7 @@ class ImageAnalyzer:
                         signal_name="HEADER_VALID",
                         category="STRUCTURE",
                         severity="INFO",
-                        score=5,
+                        score=95,
                         message="JPEG header valid (magic number correct)",
                         details={"format": "JPEG", "magic_valid": True}
                     ))
@@ -181,7 +220,7 @@ class ImageAnalyzer:
                         signal_name="HEADER_CORRUPTED",
                         category="STRUCTURE",
                         severity="CRITICAL",
-                        score=85,
+                        score=15,
                         message="JPEG header corrupted (invalid magic number)",
                         details={"format": "JPEG", "magic_valid": False, "header": header[:3].hex()}
                     ))
@@ -193,7 +232,7 @@ class ImageAnalyzer:
                         signal_name="HEADER_VALID",
                         category="STRUCTURE",
                         severity="INFO",
-                        score=5,
+                        score=95,
                         message="PNG header valid (magic number correct)",
                         details={"format": "PNG", "magic_valid": True}
                     ))
@@ -202,7 +241,7 @@ class ImageAnalyzer:
                         signal_name="HEADER_CORRUPTED",
                         category="STRUCTURE",
                         severity="CRITICAL",
-                        score=85,
+                        score=15,
                         message="PNG header corrupted (invalid magic number)",
                         details={"format": "PNG", "magic_valid": False}
                     ))
@@ -214,7 +253,7 @@ class ImageAnalyzer:
                         signal_name="HEADER_VALID",
                         category="STRUCTURE",
                         severity="INFO",
-                        score=5,
+                        score=95,
                         message="GIF header valid",
                         details={"format": "GIF", "magic_valid": True}
                     ))
@@ -223,12 +262,22 @@ class ImageAnalyzer:
                         signal_name="HEADER_CORRUPTED",
                         category="STRUCTURE",
                         severity="CRITICAL",
-                        score=85,
+                        score=15,
                         message="GIF header corrupted",
                         details={"format": "GIF", "magic_valid": False}
                     ))
+            else:
+                # Unknown format
+                signals.append(Signal(
+                    signal_name="HEADER_UNKNOWN",
+                    category="STRUCTURE",
+                    severity="WARNING",
+                    score=50,
+                    message="Unknown or unrecognized image format",
+                    details={"format": "UNKNOWN", "header_hex": header[:8].hex()}
+                ))
             
-            # Check dimensions using PIL
+            # Check dimensions using PIL (if file is readable)
             try:
                 image = Image.open(file_path)
                 width, height = image.size
@@ -238,7 +287,7 @@ class ImageAnalyzer:
                         signal_name="DIMENSIONS_VALID",
                         category="STRUCTURE",
                         severity="INFO",
-                        score=5,
+                        score=95,
                         message=f"Image dimensions valid: {width}x{height}",
                         details={"width": width, "height": height}
                     ))
@@ -247,12 +296,12 @@ class ImageAnalyzer:
                         signal_name="DIMENSIONS_INVALID",
                         category="STRUCTURE",
                         severity="WARNING",
-                        score=50,
+                        score=30,
                         message="Image dimensions invalid or zero",
                         details={"width": width, "height": height}
                     ))
             except Exception as e:
-                logger.warning(f"Error checking dimensions: {e}")
+                logger.debug(f"Could not check dimensions with PIL: {e}")
         
         except Exception as e:
             logger.warning(f"Error checking header in {file_path}: {e}")
@@ -288,7 +337,7 @@ class ImageAnalyzer:
                                     signal_name="THUMBNAIL_PRESENT",
                                     category="STRUCTURE",
                                     severity="INFO",
-                                    score=10,
+                                    score=80,
                                     message="JPEG contains thumbnail metadata",
                                     details={"has_thumbnail": True}
                                 ))
@@ -297,7 +346,7 @@ class ImageAnalyzer:
                                     signal_name="THUMBNAIL_MISSING",
                                     category="STRUCTURE",
                                     severity="INFO",
-                                    score=20,
+                                    score=70,
                                     message="JPEG has no thumbnail metadata",
                                     details={"has_thumbnail": False}
                                 ))
@@ -306,7 +355,7 @@ class ImageAnalyzer:
                                 signal_name="THUMBNAIL_MISSING",
                                 category="STRUCTURE",
                                 severity="INFO",
-                                score=15,
+                                score=75,
                                 message="Could not determine thumbnail status",
                                 details={"has_thumbnail": None}
                             ))
@@ -340,7 +389,7 @@ class ImageAnalyzer:
                     signal_name="COLORSPACE_STANDARD",
                     category="ENCODING",
                     severity="INFO",
-                    score=10,
+                    score=90,
                     message=f"Color space is standard: {mode}",
                     details={"color_space": mode, "is_standard": True}
                 ))
@@ -360,7 +409,7 @@ class ImageAnalyzer:
                     signal_name="COLORPROFILE_PRESENT",
                     category="ENCODING",
                     severity="INFO",
-                    score=5,
+                    score=95,
                     message="ICC color profile present",
                     details={"has_profile": True}
                 ))
@@ -379,66 +428,115 @@ class ImageAnalyzer:
         signals = []
         
         try:
-            # Only check JPEG files for compression artifacts
-            if file_path.suffix.lower() not in ['.jpg', '.jpeg']:
-                return signals
-            
-            image = Image.open(file_path)
-            
-            if image.format != 'JPEG':
-                return signals
-            
-            # Check quantization tables to detect re-compression
-            try:
-                # Get quantization tables info
-                if hasattr(image, 'quantization'):
-                    quant_tables = image.quantization
-                    
-                    if len(quant_tables) > 0:
-                        # Check for evidence of re-compression
-                        # Multiple generations show degraded quality
-                        quality_indicator = sum(sum(table.values()) for table in quant_tables.values() if isinstance(table, dict))
+            # Check JPEG files for compression artifacts
+            if file_path.suffix.lower() in ['.jpg', '.jpeg']:
+                image = Image.open(file_path)
+                
+                if image.format != 'JPEG':
+                    return signals
+                
+                # Check quantization tables to detect re-compression
+                try:
+                    # Get quantization tables info
+                    if hasattr(image, 'quantization'):
+                        quant_tables = image.quantization
                         
-                        if quality_indicator < 100:
-                            signals.append(Signal(
-                                signal_name="COMPRESSION_MULTIPLE_GENERATIONS",
-                                category="ENCODING",
-                                severity="WARNING",
-                                score=60,
-                                message="Signs of multiple JPEG compressions detected",
-                                details={"quantization_score": quality_indicator, "generations_detected": "multiple"}
-                            ))
+                        if len(quant_tables) > 0:
+                            # Check for evidence of re-compression
+                            # Multiple generations show degraded quality
+                            quality_indicator = sum(sum(table.values()) for table in quant_tables.values() if isinstance(table, dict))
+                            
+                            if quality_indicator < 100:
+                                signals.append(Signal(
+                                    signal_name="COMPRESSION_MULTIPLE_GENERATIONS",
+                                    category="ENCODING",
+                                    severity="WARNING",
+                                    score=35,
+                                    message="Signs of multiple JPEG compressions detected",
+                                    details={"quantization_score": quality_indicator, "generations_detected": "multiple"}
+                                ))
+                            else:
+                                signals.append(Signal(
+                                    signal_name="COMPRESSION_SINGLE",
+                                    category="ENCODING",
+                                    severity="INFO",
+                                    score=85,
+                                    message="Single JPEG compression detected",
+                                    details={"quantization_score": quality_indicator, "generations_detected": "single"}
+                                ))
                         else:
                             signals.append(Signal(
                                 signal_name="COMPRESSION_SINGLE",
                                 category="ENCODING",
                                 severity="INFO",
-                                score=15,
-                                message="Single JPEG compression detected",
-                                details={"quantization_score": quality_indicator, "generations_detected": "single"}
+                                score=80,
+                                message="JPEG compression appears normal",
+                                details={"generations_detected": "single"}
+                            ))
+                except:
+                    # If we can't get quantization tables, use generic signal
+                    signals.append(Signal(
+                        signal_name="COMPRESSION_SINGLE",
+                        category="ENCODING",
+                        severity="INFO",
+                        score=75,
+                        message="JPEG compression analysis inconclusive",
+                        details={"analysis": "inconclusive"}
+                    ))
+            
+            # Check PNG files for compression type
+            elif file_path.suffix.lower() == '.png':
+                image = Image.open(file_path)
+                
+                if image.format != 'PNG':
+                    return signals
+                
+                # PNG always uses deflate compression, check if it's optimized
+                try:
+                    # PNG uses zlib/deflate compression
+                    # Check if it appears to be optimized PNG
+                    if hasattr(image, 'info'):
+                        # Check for optimization indicators
+                        has_palette = image.mode == 'P'
+                        if has_palette:
+                            signals.append(Signal(
+                                signal_name="COMPRESSION_OPTIMIZED",
+                                category="ENCODING",
+                                severity="INFO",
+                                score=85,
+                                message="PNG uses optimized palette compression",
+                                details={"compression_type": "palette", "optimized": True}
+                            ))
+                        else:
+                            signals.append(Signal(
+                                signal_name="COMPRESSION_STANDARD",
+                                category="ENCODING",
+                                severity="INFO",
+                                score=80,
+                                message="PNG uses standard deflate compression",
+                                details={"compression_type": "deflate", "optimized": False}
                             ))
                     else:
                         signals.append(Signal(
-                            signal_name="COMPRESSION_SINGLE",
+                            signal_name="COMPRESSION_STANDARD",
                             category="ENCODING",
                             severity="INFO",
-                            score=20,
-                            message="JPEG compression appears normal",
-                            details={"generations_detected": "single"}
+                            score=82,
+                            message="PNG compression appears standard",
+                            details={"analysis": "inconclusive"}
                         ))
-            except:
-                # If we can't get quantization tables, use generic signal
-                signals.append(Signal(
-                    signal_name="COMPRESSION_SINGLE",
-                    category="ENCODING",
-                    severity="INFO",
-                    score=25,
-                    message="JPEG compression analysis inconclusive",
-                    details={"analysis": "inconclusive"}
-                ))
+                except:
+                    signals.append(Signal(
+                        signal_name="COMPRESSION_STANDARD",
+                        category="ENCODING",
+                        severity="INFO",
+                        score=80,
+                        message="PNG compression analysis inconclusive",
+                        details={"analysis": "inconclusive"}
+                    ))
         
         except Exception as e:
-            logger.warning(f"Error checking compression artifacts: {e}")
+            logger.debug(f"Error checking compression artifacts: {e}")
         
         return signals
     
